@@ -47,14 +47,29 @@ while True:
 
                 message_length = int(message_header.decode("utf-8"))
                 message = notifiedSocket.recv(message_length).decode("utf-8")
-                
-                # Broadcast the message to all other clients
-                print(f"Received message from {clients[notifiedSocket]}: {message}")
-                for client_socket in sockets:
-                    if client_socket != notifiedSocket:
-                        client_socket.send(f"{len(message):<{headerSize}}{message}".encode("utf-8"))
+                # Broadcast if only meant for one client
+                if message.split()[0][0] == "@":
+                    unicast_username = message.split()[0][1:]
+                    for client_socket in sockets:
+                        if (client_socket != notifiedSocket) and (clients[client_socket] == unicast_username):
+                            message = f"{clients[notifiedSocket]}: {message}" # Adds the username to the front of message
+                            print(message) # For the server chat log
+                            client_socket.send(f"{len(message):<{headerSize}}{message}".encode("utf-8"))
+
+                # Broadcast for all clients
+                else:
+                    message = f"{clients[notifiedSocket]}: {message}" # Adds the username to the front of message
+                    print(message) # For the server chat log
+                    for client_socket in sockets:
+                        if client_socket != notifiedSocket: # All but the current person
+                            client_socket.send(f"{len(message):<{headerSize}}{message}".encode("utf-8"))
+               
 
             except Exception as e:
                 print(f"Error: {e}")
+                message = f"{clients[notifiedSocket]} has left"
+                for client_socket in sockets:
+                    if client_socket != notifiedSocket: # All but the current person leaving 
+                        client_socket.send(f"{len(message):<{headerSize}}{message}".encode("utf-8"))
                 sockets.remove(notifiedSocket)
                 del clients[notifiedSocket]
