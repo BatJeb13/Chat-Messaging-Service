@@ -2,6 +2,7 @@ import socket # obvs used for the sockets
 import sys # used to get info from command line
 import select # used to manage multiple clients
 import os # Used to get the files and folders
+import pickle # Used to send the files to client 
 
 headerSize = 10
 port = int(sys.argv[1])
@@ -66,7 +67,10 @@ while True:
                     # For when the clients want to acess the server files show the data 
                     elif message.split()[0][1:] == "files":
                         clients[notifiedSocket][1] = "files"
-
+                        message = f"From server to {clients[notifiedSocket][0]} You have accessed the SharedFile Folder there is {len(files)} avaliable they are:\n"
+                        for file in files:
+                            message += f"{file}\n"
+                        notifiedSocket.send(f"{len(message):<{headerSize}}{message}".encode("utf-8"))
                     # Changing back to messaging everyone
                     elif message.split()[0][1:] == "all":
                         clients[notifiedSocket][1] = "all"
@@ -95,14 +99,26 @@ while True:
                         for client_socket in sockets:
                             if client_socket != notifiedSocket and (clients[notifiedSocket][1] == "all" or clients[client_socket][0]==clients[notifiedSocket][1]): # All or either the current private message
                                 client_socket.send(f"{len(message):<{headerSize}}{message}".encode("utf-8"))
-                    # For when the client is interacting with the files
+                    # For when the client is downloading files
                     else:
-                        pass
+                        filePath = serverSharedFilesPath +'/'+message
+                        if not os.path.exists(filePath):
+                            message = f"To {clients[notifiedSocket][0]} from server file not found"
+                            print(message) # For server log
+                            notifiedSocket.send(f"{len(message):<{headerSize}}{message}".encode("utf-8"))
+                        else:
+                            with open(filePath, 'rb') as file:
+                                fileData = file.read()
+                            message = pickle.dumps(fileData)
+                            message = f"{len(message):<{headerSize}}".encode("utf-8") + message
+                            print(message)
+                            notifiedSocket.send(message)
                
             # All errors but mostly used for when the client forces the terminal to shut down instead of disconecting 
             except Exception as e:
                 print(f"Error: {e}")
                 message = f"{clients[notifiedSocket][0]} has left"
+                print(message)
                 for client_socket in sockets:
                     if client_socket != notifiedSocket: # All but the current person leaving 
                         client_socket.send(f"{len(message):<{headerSize}}{message}".encode("utf-8"))
