@@ -1,6 +1,6 @@
-import socket
-import sys
-import select
+import socket # obvs used for the sockets
+import sys # used to get info from command line
+import select # used to manage multiple clients
 
 headerSize = 10
 port = int(sys.argv[1])
@@ -65,7 +65,7 @@ while True:
                             if (client_socket != notifiedSocket) and (clients[client_socket] == unicast_username):
                                 message = f"{clients[notifiedSocket]}: {message}" # Adds the username to the front of message
                                 print(message) # For the server chat log
-                                client_socket.send(f"{len(message):<{headerSize}}{message}".encode("utf-8"))
+                                client_socket.send(f"{len(message):<{headerSize}}{message}".encode("utf-8")) 
 
                 # Broadcast for all clients
                 else:
