@@ -10,7 +10,7 @@ port = int(sys.argv[1])
 clients = {}
 sockets = []
 serverSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-serverSocket.bind(('127.0.0.1', port))
+serverSocket.bind(('192.168.6.217', port))
 serverSocket.listen(5)
 serverSharedFilesPath = os.getenv("SERVER_SHARED_FILES", "SharedFiles") # Gets the path to the files
 files = os.listdir(serverSharedFilesPath) # Gets the files in the location
@@ -70,7 +70,8 @@ while True:
                         message = f"From server to {clients[notifiedSocket][0]} You have accessed the SharedFile Folder there is {len(files)} avaliable they are:\n"
                         for file in files:
                             filePath = serverSharedFilesPath +'/'+ file
-                            message += f"{file} With size: {os.path.getsize(filePath)} Bytes\n"
+                            message += f"{file} With size: {os.path.getsize(filePath)} Bytes\n" # Gets the size of file in bytes
+                        print(message) # For server log
                         notifiedSocket.send(f"{len(message):<{headerSize}}{message}".encode("utf-8"))
                     # Changing back to messaging everyone
                     elif message.split()[0][1:] == "all":
@@ -102,21 +103,23 @@ while True:
                                 client_socket.send(f"{len(message):<{headerSize}}{message}".encode("utf-8"))
                     # For when the client is downloading files
                     else:
-                        filePath = serverSharedFilesPath +'/'+message
+                        filePath = serverSharedFilesPath +'/'+message # Gets path to file
+                        # If file doesn't exist
                         if not os.path.exists(filePath):
-                            message = f"To {clients[notifiedSocket][0]} from server file not found"
+                            message = f"To {clients[notifiedSocket][0]} from server file not found" 
                             print(message) # For server log
                             notifiedSocket.send(f"{len(message):<{headerSize}}{message}".encode("utf-8"))
                         else:
                             with open(filePath, 'rb') as file:
                                 fileData = file.read()
+                            # Need to send over both file name and the data within the file
                             fileDataAndName = {
                                 'fileName': message,
                                 'fileData': fileData
                             }
                             print(f"sent file {message} to {clients[notifiedSocket][0]}")# For server log
-                            message = pickle.dumps(fileDataAndName)
-                            message = b" file " + message
+                            message = pickle.dumps(fileDataAndName) # Pickling the data makes it possible to send over the network
+                            message = b" file " + message # This is used for the client side to check if it is a file or a message
                             message = bytes(f"{len(message):<{headerSize}}", "utf-8") + message
                             notifiedSocket.send(message)
                

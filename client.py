@@ -18,7 +18,7 @@ clientSocket.send(username_msg.encode('utf-8'))
 
 def sender():
     while True:
-        # Send a message to the server
+        # Send a message to the server very simple 
         msg = input("Enter a message to send: \n")
         msg = f"{len(msg):<{headerSize}}{msg}"
         clientSocket.send(msg.encode('utf-8'))
@@ -28,7 +28,7 @@ def receiver():
         # Initialize buffer for incoming messages
         fullmsg = b''  # Treat as byte string
         newmsg = True
-        fileTransfer = False
+        fileTransfer = False # Used to see if file or not
         
         while True:
             msg = clientSocket.recv(16)
@@ -41,7 +41,6 @@ def receiver():
                 if msg.split()[1].decode("utf-8") == 'file':
                     print("Transferring a file")
                     fileTransfer = True
-            
             # Accumulate received bytes
             fullmsg += msg
             # Check if the full message has been received
@@ -55,12 +54,12 @@ def receiver():
                     file = pickle.loads(fullmsg[headerSize+6:])
                     filePath = os.path.join(userName, file['fileName'])
                     
-                    # Write the file content to the destination folder
+                    # Write the file content to the username folder only if file with same name is not already there
                     if os.path.exists(filePath):
                         print('file already exists')
                     else:
                         with open(filePath, 'wb') as f:
-                            f.write(file['fileData'])  # Assuming file_data has 'filename' and 'content'
+                            f.write(file['fileData'])  
                         print(f"File saved as {filePath}")
                         fileTransfer = False
                     
