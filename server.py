@@ -69,7 +69,8 @@ while True:
                         clients[notifiedSocket][1] = "files"
                         message = f"From server to {clients[notifiedSocket][0]} You have accessed the SharedFile Folder there is {len(files)} avaliable they are:\n"
                         for file in files:
-                            message += f"{file}\n"
+                            filePath = serverSharedFilesPath +'/'+ file
+                            message += f"{file} With size: {os.path.getsize(filePath)} Bytes\n"
                         notifiedSocket.send(f"{len(message):<{headerSize}}{message}".encode("utf-8"))
                     # Changing back to messaging everyone
                     elif message.split()[0][1:] == "all":
@@ -109,9 +110,14 @@ while True:
                         else:
                             with open(filePath, 'rb') as file:
                                 fileData = file.read()
-                            message = pickle.dumps(fileData)
-                            message = f"{len(message):<{headerSize}}".encode("utf-8") + message
-                            print(message)
+                            fileDataAndName = {
+                                'fileName': message,
+                                'fileData': fileData
+                            }
+                            print(f"sent file {message} to {clients[notifiedSocket][0]}")# For server log
+                            message = pickle.dumps(fileDataAndName)
+                            message = b" file " + message
+                            message = bytes(f"{len(message):<{headerSize}}", "utf-8") + message
                             notifiedSocket.send(message)
                
             # All errors but mostly used for when the client forces the terminal to shut down instead of disconecting 

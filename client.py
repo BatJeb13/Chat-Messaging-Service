@@ -1,6 +1,8 @@
 import socket # Used to do the whole socket thing
 import sys # Used to get info from terminal 
 import threading # Used to allow us to both recieve and send data
+import pickle
+import os # Used for folder and file stuff
 
 
 headerSize = 10 # How long messages can be obvs they wont be longer than 1,000,000 but never know XD
@@ -23,25 +25,57 @@ def sender():
 
 def receiver():
     while True:
-        # Receiving Messages from server and packing the buffer together
-        fullmsg = ''
+        # Initialize buffer for incoming messages
+        fullmsg = b''  # Treat as byte string
         newmsg = True
+        fileTransfer = False
+        
         while True:
             msg = clientSocket.recv(16)
             if newmsg:
+                # Read header to get message length
                 msglen = int(msg[:headerSize])
                 newmsg = False
-
-            fullmsg += msg.decode("utf-8")
-
-            if len(fullmsg) - headerSize == msglen: # If the full message is recieved
-                print(fullmsg[headerSize:])
-                newmsg = True  # Reset for the next message
+                
+                # Check if this message is a file transfer
+                if msg.split()[1].decode("utf-8") == 'file':
+                    print("Transferring a file")
+                    fileTransfer = True
+            
+            # Accumulate received bytes
+            fullmsg += msg
+            # Check if the full message has been received
+            if len(fullmsg) - headerSize == msglen:
+                if fileTransfer:
+                    # Create the folder only if it doesn't exist
+                    if not os.path.isdir(userName):
+                        os.makedirs(userName)
+                        print("Folder created")
+                    print("Full file received")
+                    file = pickle.loads(fullmsg[headerSize+6:])
+                    filePath = os.path.join(userName, file['fileName'])
+                    
+                    # Write the file content to the destination folder
+                    if os.path.exists(filePath):
+                        print('file already exists')
+                    else:
+                        with open(filePath, 'wb') as f:
+                            f.write(file['fileData'])  # Assuming file_data has 'filename' and 'content'
+                        print(f"File saved as {filePath}")
+                        fileTransfer = False
+                    
+                else:
+                    # Decode and print only if it's a text message
+                    print(fullmsg[headerSize:].decode("utf-8"))
+                
+                # Prepare to receive the next message
+                newmsg = True
+                fullmsg = b''  # Reset buffer
                 break
 
 def start():
-    send_thread = threading.Thread(target=sender)
     receive_thread = threading.Thread(target=receiver)
+    send_thread = threading.Thread(target=sender)
     receive_thread.start()
     send_thread.start()
 
