@@ -99,7 +99,7 @@ try:
 
                             fileTransfer = False
                         else:
-                            print(fullmsg[HEADER_SIZE:].decode('utf-8'))
+                            print(fullmsg[headerSize:].decode('utf-8'))
 
                         newmsg = True
                         fullmsg = b''  # Reset buffer
