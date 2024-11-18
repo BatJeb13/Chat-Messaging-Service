@@ -10,16 +10,16 @@ port = int(sys.argv[1])
 clients = {}
 sockets = []
 serverSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-serverSocket.bind(('192.168.6.217', port))
+serverSocket.bind(('127.0.0.1', port))
 serverSocket.listen(5)
 serverSharedFilesPath = os.getenv("SERVER_SHARED_FILES", "SharedFiles") # Gets the path to the files
 files = os.listdir(serverSharedFilesPath) # Gets the files in the location
 
 while True:
     # Using select to manage multiple clients
-    read_sockets, _, _ = select.select([serverSocket] + sockets, [], [])
+    readSockets, _, _ = select.select([serverSocket] + sockets, [], [])
 
-    for notifiedSocket in read_sockets:
+    for notifiedSocket in readSockets:
         if notifiedSocket == serverSocket:
             # New connection
             clientSocket, address = serverSocket.accept()
