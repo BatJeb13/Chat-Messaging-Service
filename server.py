@@ -12,8 +12,48 @@ sockets = []
 serverSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 serverSocket.bind(('127.0.0.1', port))
 serverSocket.listen(5)
-serverSharedFilesPath = os.getenv("SERVER_SHARED_FILES", "SharedFiles") # Gets the path to the files
-files = os.listdir(serverSharedFilesPath) # Gets the files in the location
+SERVER_SHARED_FILES = os.getenv("SERVER_SHARED_FILES", "SharedFiles") # Gets the path to the files
+files = os.listdir(SERVER_SHARED_FILES) # Gets the files in the location
+
+# For sending messages to clients 
+def sendMessage(sender, reciever, message):
+    # Global broadcast
+    if reciever == 'all':
+        for clientSocket in sockets:
+           if clientSocket != sender:
+               clientSocket.send(f"{len(message):<{headerSize}}{message}".encode("utf-8"))
+    # Unicast
+    else:
+        for clientSocket in sockets:
+            if clients[clientSocket] == reciever:
+                clientSocket.send(f"{len(message):<{headerSize}}{message}".encode("utf-8"))
+
+# For sending files to clients
+def sendFile(reciever, fileName, type):
+    if type == "send":
+        filePath = SERVER_SHARED_FILES+'/'+fileName
+        if not os.path.exists(filePath):
+            message = f"To {clients[reciever]} from server file not found"
+            print(message) # for server log
+            reciever.send(f"{len(message):<{headerSize}}{message}".encode("utf-8"))
+        else:
+            with open(filePath, 'rb') as file:
+                fileData = file.read()
+            # Need to send over both file name and the data within the file
+            fileDataAndName = {
+                'fileName': fileName,
+                'fileData': fileData
+            }
+            print(f"sent file {fileName} to {clients[reciever]}")# For server log
+            message = pickle.dumps(fileDataAndName) # Pickling the data makes it possible to send over the network
+            message = b" file " + message # This is used for the client side to check if it is a file or a message
+            message = bytes(f"{len(message):<{headerSize}}", "utf-8") + message
+            reciever.send(message)
+    else:
+        message = f"{fileName} has size of {os.path.getsize(filePath)} bytes"
+        print(message) # For server log
+        sendMessage("Server", clients[notifiedSocket], message)
+
 
 while True:
     # Using select to manage multiple clients
@@ -30,106 +70,66 @@ while True:
             username_length = int(username_header.decode("utf-8"))
             username = clientSocket.recv(username_length).decode("utf-8")
             
-            clients[clientSocket] = [username, 'all'] # add client to the dictionary 
+            clients[clientSocket] = username # add client to the dictionary 
             sockets.append(clientSocket)
-            
-            welcome_msg = "Welcome to the server"
-            welcome_msg = f"{len(welcome_msg):<{headerSize}}{welcome_msg}"
-            clientSocket.send(bytes(welcome_msg, 'utf-8'))
-            print(f"Client '{username}' connected with address {address}.")
-        
+            message = f"Welcome to the server {username}"
+            print(message) # For server log
+            sendMessage('Server', username , message)
+            message = f'{username} has joined the server'
+            sendMessage(clientSocket, 'all', message)
         else:
-            # Receive message
             try:
-                message_header = notifiedSocket.recv(headerSize)
-                if not len(message_header):
-                    # Client disconnected
-                    print(f"Client {clients[notifiedSocket][0]} disconnected.")
+                messageHeader = notifiedSocket.recv(headerSize)
+                if not len(messageHeader):
+                    print(f"Client {clients[notifiedSocket]} disconnected.")
                     sockets.remove(notifiedSocket)
                     del clients[notifiedSocket]
                     continue
+                messageLength = int(messageHeader.decode("utf-8"))
+                message = notifiedSocket.recv(messageLength).decode("utf-8")
 
-                message_length = int(message_header.decode("utf-8"))
-                message = notifiedSocket.recv(message_length).decode("utf-8")
-                
                 # Commands
                 if message.split()[0][0] == "@":
-                    # User Leaving
-                    if message.split()[0][1:] == "exit":
-                        message = f"{clients[notifiedSocket][0]} has left"
-                        print(message)
-                        for client_socket in sockets:
-                            if client_socket != notifiedSocket: # All but the current person leaving 
-                                client_socket.send(f"{len(message):<{headerSize}}{message}".encode("utf-8"))
-                        sockets.remove(notifiedSocket)
-                        del clients[notifiedSocket]
-                    
-                    # For when the clients want to acess the server files show the data 
-                    elif message.split()[0][1:] == "files":
-                        clients[notifiedSocket][1] = "files"
-                        message = f"From server to {clients[notifiedSocket][0]} You have accessed the SharedFile Folder there is {len(files)} avaliable they are:\n"
+                    # Files
+                    if message.split()[0][1:] == "files":
+                        message = f"From server to {clients[notifiedSocket]} You have accessed the SharedFile Folder there is {len(files)} avaliable they are:\n"
                         for file in files:
-                            filePath = serverSharedFilesPath +'/'+ file
+                            filePath = SERVER_SHARED_FILES +'/'+ file
                             message += f"{file} With size: {os.path.getsize(filePath)} Bytes\n" # Gets the size of file in bytes
                         print(message) # For server log
-                        notifiedSocket.send(f"{len(message):<{headerSize}}{message}".encode("utf-8"))
-                    # Changing back to messaging everyone
-                    elif message.split()[0][1:] == "all":
-                        clients[notifiedSocket][1] = "all"
-                        message = " ".join(message.split()[1:])
-                        message = f"To {clients[notifiedSocket][1]} from {clients[notifiedSocket][0]}: {message}" # Adds the username to the front of message and the current messaging type
-                        print(message) # For the server chat log
-                        for client_socket in sockets:
-                            if client_socket != notifiedSocket and (clients[notifiedSocket][1] == "all" or clients[client_socket][0]==clients[notifiedSocket][1]): # All or either the current private message
-                                client_socket.send(f"{len(message):<{headerSize}}{message}".encode("utf-8"))
-                    
-                    # Unicast: The only other command would be messaging a username with unicast.        
+                        sendMessage("Server", clients[notifiedSocket], message)
+                    # UniCast
                     else:
-                        unicast_username = message.split()[0][1:]
-                        clients[notifiedSocket][1] = unicast_username
+                        reciever = message.split()[0][1:]
                         message = " ".join(message.split()[1:])
-                        message = f"To {clients[notifiedSocket][1]} from {clients[notifiedSocket][0]}: {message}" # Adds the username to the front of message
-                        print(message) # For the server chat log
-                        for client_socket in sockets:
-                            if (client_socket != notifiedSocket) and (clients[client_socket][0] == unicast_username):
-                                client_socket.send(f"{len(message):<{headerSize}}{message}".encode("utf-8")) 
+                        message = f"From {clients[notifiedSocket]} to {reciever} "+message
+                        sendMessage(notifiedSocket, reciever, message)
+
+                elif message.split()[0][0] == "/":
+                    # For when client leaves normally 
+                    if message.split()[0][1:] == "exit":
+                        message = f"{clients[notifiedSocket]} has left"
+                        print(message)
+                        sendMessage(notifiedSocket, "all", message)
+                        sockets.remove(notifiedSocket)
+                        del clients[notifiedSocket]
+                    # For downloading files
+                    elif message.split()[0][1:] == "download":
+                        file = " ".join(message.split()[1:])
+                        sendFile(notifiedSocket, file, "send")
+
+                    elif message.split()[0][1:] == "size":
+                        file = " ".join(message.split()[1:])
+                        sendFile(notifiedSocket, file, "size")                       
+
+                # To everyone
                 else:
-                    # For broadcasting messages 
-                    if clients[notifiedSocket][1] != "files":
-                        message = f"To {clients[notifiedSocket][1]}from{clients[notifiedSocket][0]}: {message}" # Adds the username to the front of message and the current messaging type
-                        print(message) # For the server chat log
-                        for client_socket in sockets:
-                            if client_socket != notifiedSocket and (clients[notifiedSocket][1] == "all" or clients[client_socket][0]==clients[notifiedSocket][1]): # All or either the current private message
-                                client_socket.send(f"{len(message):<{headerSize}}{message}".encode("utf-8"))
-                    # For when the client is downloading files
-                    else:
-                        filePath = serverSharedFilesPath +'/'+message # Gets path to file
-                        # If file doesn't exist
-                        if not os.path.exists(filePath):
-                            message = f"To {clients[notifiedSocket][0]} from server file not found" 
-                            print(message) # For server log
-                            notifiedSocket.send(f"{len(message):<{headerSize}}{message}".encode("utf-8"))
-                        else:
-                            with open(filePath, 'rb') as file:
-                                fileData = file.read()
-                            # Need to send over both file name and the data within the file
-                            fileDataAndName = {
-                                'fileName': message,
-                                'fileData': fileData
-                            }
-                            print(f"sent file {message} to {clients[notifiedSocket][0]}")# For server log
-                            message = pickle.dumps(fileDataAndName) # Pickling the data makes it possible to send over the network
-                            message = b" file " + message # This is used for the client side to check if it is a file or a message
-                            message = bytes(f"{len(message):<{headerSize}}", "utf-8") + message
-                            notifiedSocket.send(message)
-               
-            # All errors but mostly used for when the client forces the terminal to shut down instead of disconecting 
+                    sendMessage(notifiedSocket, "all", message)
+            
             except Exception as e:
                 print(f"Error: {e}")
-                message = f"{clients[notifiedSocket][0]} has left"
+                message = f"{clients[notifiedSocket]} has left"
                 print(message)
-                for client_socket in sockets:
-                    if client_socket != notifiedSocket: # All but the current person leaving 
-                        client_socket.send(f"{len(message):<{headerSize}}{message}".encode("utf-8"))
+                sendMessage(notifiedSocket, "all", message)
                 sockets.remove(notifiedSocket)
                 del clients[notifiedSocket]

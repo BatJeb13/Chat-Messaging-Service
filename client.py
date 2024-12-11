@@ -1,7 +1,7 @@
 import socket  # Used to do the whole socket thing
 import sys  # Used to get info from terminal
 import threading  # Used to allow us to both receive and send data
-import pickle
+import pickle # Used for serlization 
 import os  # Used for folder and file stuff
 
 # Constants
