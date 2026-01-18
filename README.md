@@ -31,3 +31,4 @@ for example /download text.txt. would download that text document into that clie
 
 To get the size of a individual file you can you the /size 'filename'
 For example /size test.txt. would send the size in bytes of that file to the user.
+# Chat-Messaging-Service
